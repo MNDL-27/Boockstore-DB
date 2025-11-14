@@ -1,0 +1,52 @@
+# PostgreSQL specific
+*.log
+*.pid
+*.swp
+*.swo
+*~
+
+# Data directories (for local testing)
+data/
+pgdata/
+postgres_data/
+
+# Backup files
+*.backup
+*.dump
+*.sql.gz
+
+# OS specific
+.DS_Store
+Thumbs.db
+*.tmp
+
+# IDE and editors
+.vscode/
+.idea/
+*.sublime-*
+.project
+.settings/
+
+# Docker volumes (if testing locally)
+.docker/
+
+# Environment variables (if used)
+.env
+.env.local
+
+# Test artifacts
+test_results/
+coverage/
+
+# Compiled files
+*.pyc
+__pycache__/
+*.class
+
+# Logs
+logs/
+*.log.*
+
+# Temporary files
+tmp/
+temp/
