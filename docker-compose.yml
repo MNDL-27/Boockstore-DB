@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  # Primary PostgreSQL Node
+  postgres-primary:
+    image: postgres:15-alpine
+    container_name: bookstore-primary
+    environment:
+      POSTGRES_DB: bookstore_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_INITDB_ARGS: "-c wal_level=replica -c hot_standby=on -c max_wal_senders=3 -c max_replication_slots=3"
+    ports:
+      - "5432:5432"
+    volumes:
+      - primary_data:/var/lib/postgresql/data
+      - ./schema:/docker-entrypoint-initdb.d
+      - ./config/postgresql_primary.conf:/etc/postgresql/postgresql.conf
+    networks:
+      - bookstore-network
+    command: >
+      postgres
+      -c wal_level=replica
+      -c hot_standby=on
+      -c max_wal_senders=3
+      -c max_replication_slots=3
+      -c wal_keep_size=1024
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d bookstore_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Replica PostgreSQL Node
+  postgres-replica:
+    image: postgres:15-alpine
+    container_name: bookstore-replica
+    environment:
+      POSTGRES_DB: bookstore_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+      PGUSER: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - replica_data:/var/lib/postgresql/data
+    networks:
+      - bookstore-network
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    # Replica setup is done manually after starting primary
+    # See docker-compose-setup.sh for initialization steps
+    command: >
+      bash -c "
+        if [ ! -f /var/lib/postgresql/data/PG_VERSION ]; then
+          echo 'Waiting for primary to be ready...';
+          sleep 10;
+          echo 'Creating base backup from primary...';
+          PGPASSWORD=replication_password pg_basebackup -h postgres-primary -D /var/lib/postgresql/data -U replication_user -v -P --wal-method=stream -R || 
+          echo 'Base backup setup will be done manually';
+        fi;
+        postgres -c hot_standby=on
+      "
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PgAdmin for database management (optional)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: bookstore-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@bookstore.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    networks:
+      - bookstore-network
+    depends_on:
+      - postgres-primary
+
+volumes:
+  primary_data:
+    driver: local
+  replica_data:
+    driver: local
+
+networks:
+  bookstore-network:
+    driver: bridge
